@@ -1,0 +1,21 @@
+# Build trees
+/build/
+/build-*/
+/out/
+/cmake-build-*/
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+.DS_Store
+*.user
+.vs/
+CMakeUserPresets.json
+
+# Validation output
+/pluginval-output/
+/validation-logs/
+
+# Downloaded tools (fetched by scripts, never committed)
+/tools/
