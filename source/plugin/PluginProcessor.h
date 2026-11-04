@@ -45,11 +45,14 @@ public:
     bool isMidiEffect() const override { return false; }
     double getTailLengthSeconds() const override { return 0.0; }
 
-    // ---- Programs (presets are handled by ECHOFORM's own preset system) ---------------------
+    // ---- Programs ---------------------------------------------------------------------------
+    // Presets are handled by ECHOFORM's own preset system (milestone P2). Hosts
+    // still see exactly one named program; the VST3 wrapper publishes it as a
+    // program list and the Steinberg validator requires every program to be named.
     int getNumPrograms() override { return 1; }
     int getCurrentProgram() override { return 0; }
     void setCurrentProgram (int) override {}
-    const juce::String getProgramName (int) override { return {}; }
+    const juce::String getProgramName (int) override { return "Default"; }
     void changeProgramName (int, const juce::String&) override {}
 
     // ---- State ------------------------------------------------------------------------------
