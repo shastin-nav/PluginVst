@@ -35,6 +35,15 @@ function(echoform_apply_target_warnings target)
     target_compile_options(${target} PRIVATE ${flags})
 endfunction()
 
+# Test executables: same policy, except float->double promotion, which
+# GoogleTest's floating-point assertions (double parameters) trigger by design.
+function(echoform_apply_test_warnings target)
+    echoform_apply_target_warnings(${target})
+    if(NOT MSVC)
+        target_compile_options(${target} PRIVATE -Wno-double-promotion)
+    endif()
+endfunction()
+
 # Apply strict warnings to selected sources of a mixed (ours + JUCE) target.
 function(echoform_apply_warning_policy target)
     echoform_warning_flags(flags)

@@ -19,7 +19,7 @@ add_executable(EchoformCoreTests
     core/LinearSmootherTests.cpp
     core/ParameterSpecTests.cpp)
 target_link_libraries(EchoformCoreTests PRIVATE echoform_core GTest::gtest_main)
-echoform_apply_target_warnings(EchoformCoreTests)
+echoform_apply_test_warnings(EchoformCoreTests)
 gtest_discover_tests(EchoformCoreTests DISCOVERY_MODE PRE_TEST)
 
 # ---------------------------------------------------------------------------
@@ -46,5 +46,5 @@ target_include_directories(EchoformPluginTests PRIVATE
     $<TARGET_PROPERTY:Echoform,INCLUDE_DIRECTORIES>)
 target_compile_definitions(EchoformPluginTests PRIVATE
     $<TARGET_PROPERTY:Echoform,COMPILE_DEFINITIONS>)
-echoform_apply_target_warnings(EchoformPluginTests)
+echoform_apply_test_warnings(EchoformPluginTests)
 gtest_discover_tests(EchoformPluginTests DISCOVERY_MODE PRE_TEST DISCOVERY_TIMEOUT 60)

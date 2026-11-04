@@ -89,6 +89,11 @@ std::size_t ScopedAllocationCounter::deallocations() const noexcept { return dea
 } // namespace echoform::test
 
 // ---- Replacement global allocation functions --------------------------------------------------
+// The nothrow operator delete overloads are not replaced: their default
+// versions forward to the replaced unsized ones (C++17 [new.delete.single]).
+// The sized overloads exist only when the compiler enables sized deallocation
+// (GCC and MSVC do by default, Clang 18 does not), so they are defined exactly
+// when the standard feature-test macro says the compiler will call them.
 
 void* operator new (std::size_t size) { return allocate (size); }
 void* operator new[] (std::size_t size) { return allocate (size); }
@@ -118,14 +123,13 @@ void* operator new[] (std::size_t size, std::align_val_t al, const std::nothrow_
 
 void operator delete (void* p) noexcept { release (p); }
 void operator delete[] (void* p) noexcept { release (p); }
-void operator delete (void* p, std::size_t) noexcept { release (p); }
-void operator delete[] (void* p, std::size_t) noexcept { release (p); }
-void operator delete (void* p, const std::nothrow_t&) noexcept { release (p); }
-void operator delete[] (void* p, const std::nothrow_t&) noexcept { release (p); }
 
 void operator delete (void* p, std::align_val_t) noexcept { releaseAligned (p); }
 void operator delete[] (void* p, std::align_val_t) noexcept { releaseAligned (p); }
+
+#if defined(__cpp_sized_deallocation)
+void operator delete (void* p, std::size_t) noexcept { release (p); }
+void operator delete[] (void* p, std::size_t) noexcept { release (p); }
 void operator delete (void* p, std::size_t, std::align_val_t) noexcept { releaseAligned (p); }
 void operator delete[] (void* p, std::size_t, std::align_val_t) noexcept { releaseAligned (p); }
-void operator delete (void* p, std::align_val_t, const std::nothrow_t&) noexcept { releaseAligned (p); }
-void operator delete[] (void* p, std::align_val_t, const std::nothrow_t&) noexcept { releaseAligned (p); }
+#endif

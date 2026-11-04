@@ -46,7 +46,7 @@ juce::ValueTree buildCompleteState (const juce::ValueTree& loaded)
 
         juce::ValueTree child { paramType };
         child.setProperty (idProperty, juce::String (s.id), nullptr);
-        child.setProperty (valueProperty, value, nullptr);
+        child.setProperty (valueProperty, static_cast<double> (value), nullptr);
         complete.appendChild (child, nullptr);
     }
 
