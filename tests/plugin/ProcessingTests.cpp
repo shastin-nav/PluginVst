@@ -281,7 +281,8 @@ TEST (Processing, DefaultSettingsProduceDelayAndReverb)
     buffer.setSample (1, 0, 1.0f);
     for (int done = 0; done < buffer.getNumSamples(); done += 512)
     {
-        juce::AudioBuffer<float> view (buffer.getArrayOfWritePointers(), 2, done, 512);
+        // The last block is shorter: 48000 is not a multiple of 512.
+        juce::AudioBuffer<float> view (buffer.getArrayOfWritePointers(), 2, done, std::min (512, buffer.getNumSamples() - done));
         process (*processor, view);
     }
 
@@ -324,7 +325,8 @@ TEST (Processing, TempoSyncFollowsTheHostTempo)
     buffer.setSample (1, 0, 1.0f);
     for (int done = 0; done < buffer.getNumSamples(); done += 256)
     {
-        juce::AudioBuffer<float> view (buffer.getArrayOfWritePointers(), 2, done, 256);
+        // The last block is shorter: 48000 is not a multiple of 256.
+        juce::AudioBuffer<float> view (buffer.getArrayOfWritePointers(), 2, done, std::min (256, buffer.getNumSamples() - done));
         process (processor, view);
     }
 
