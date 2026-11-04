@@ -1,17 +1,13 @@
 #include "plugin/PluginProcessor.h"
 
 #include "dsp/FloatSafety.h"
+#include "dsp/Gain.h"
 #include "plugin/ParameterLayout.h"
 #include "plugin/PluginEditor.h"
 #include "plugin/StateSerializer.h"
 
 namespace echoform
 {
-namespace
-{
-    float decibelsToGain (float db) noexcept { return juce::Decibels::decibelsToGain (db, -100.0f); }
-} // namespace
-
 EchoformAudioProcessor::EchoformAudioProcessor()
     : juce::AudioProcessor (BusesProperties()
                                 .withInput ("Input", juce::AudioChannelSet::stereo(), true)
@@ -30,8 +26,8 @@ void EchoformAudioProcessor::prepareToPlay (double sampleRate, int /*maximumExpe
     // the current parameter values, with no ramps pending.
     parameterBridge.update (snapshot);
 
-    inputGain.reset (sampleRate, kGainSmoothingSeconds, decibelsToGain (snapshot.get (params::Param::inputGain)));
-    outputGain.reset (sampleRate, kGainSmoothingSeconds, decibelsToGain (snapshot.get (params::Param::outputGain)));
+    inputGain.reset (sampleRate, kGainSmoothingSeconds, dsp::decibelsToGain (snapshot.get (params::Param::inputGain)));
+    outputGain.reset (sampleRate, kGainSmoothingSeconds, dsp::decibelsToGain (snapshot.get (params::Param::outputGain)));
 }
 
 void EchoformAudioProcessor::releaseResources() {}
@@ -70,14 +66,14 @@ void EchoformAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
     juce::ScopedNoDenormals noDenormals;
 
     const auto numSamples = buffer.getNumSamples();
-    if (numSamples <= 0)
+    if (numSamples <= 0 || buffer.getNumChannels() <= 0)
         return;
 
     prepareStereoChannels (buffer);
 
     parameterBridge.update (snapshot);
-    inputGain.setTarget (decibelsToGain (snapshot.get (params::Param::inputGain)));
-    outputGain.setTarget (decibelsToGain (snapshot.get (params::Param::outputGain)));
+    inputGain.setTarget (dsp::decibelsToGain (snapshot.get (params::Param::inputGain)));
+    outputGain.setTarget (dsp::decibelsToGain (snapshot.get (params::Param::outputGain)));
 
     const auto numChannels = juce::jmin (2, buffer.getNumChannels());
     auto* left = buffer.getWritePointer (0);
@@ -106,7 +102,7 @@ void EchoformAudioProcessor::processBlockBypassed (juce::AudioBuffer<float>& buf
     juce::ignoreUnused (midi);
 
     // Host bypass: dry signal, but still a valid stereo image for mono inputs.
-    if (buffer.getNumSamples() > 0)
+    if (buffer.getNumSamples() > 0 && buffer.getNumChannels() > 0)
         prepareStereoChannels (buffer);
 }
 

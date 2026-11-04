@@ -1,5 +1,7 @@
 #include "plugin/TestHelpers.h"
 
+#include "dsp/Gain.h"
+
 #include <gtest/gtest.h>
 
 #include <cmath>
@@ -106,7 +108,7 @@ TEST (Processing, OutputGainIsSmoothedThenExact)
     auto processor = makePreparedProcessor (sampleRate, 4096);
     setParameterValue (*processor, "outputGain", -6.0f);
 
-    const auto targetGain = juce::Decibels::decibelsToGain (getParameterValue (*processor, "outputGain"));
+    const auto targetGain = dsp::decibelsToGain (getParameterValue (*processor, "outputGain"));
     const auto rampSamples = static_cast<int> (sampleRate * EchoformAudioProcessor::kGainSmoothingSeconds);
 
     juce::AudioBuffer<float> buffer (2, 4096);
@@ -150,6 +152,11 @@ TEST (Processing, HandlesArbitraryBlockSizes)
 
     juce::AudioBuffer<float> empty (2, 0);
     process (*processor, empty); // must not crash
+
+    juce::AudioBuffer<float> noChannels (0, 64);
+    process (*processor, noChannels); // must not crash
+    juce::MidiBuffer midi;
+    processor->processBlockBypassed (noChannels, midi);
 }
 
 TEST (Processing, SampleRateChangesReinitialiseSmoothing)
@@ -177,7 +184,7 @@ TEST (Processing, SampleRateChangesReinitialiseSmoothing)
             juce::FloatVectorOperations::fill (ones.getWritePointer (ch), 1.0f, ones.getNumSamples());
         process (processor, ones);
 
-        const auto target = juce::Decibels::decibelsToGain (getParameterValue (processor, "outputGain"));
+        const auto target = dsp::decibelsToGain (getParameterValue (processor, "outputGain"));
         EXPECT_GT (ones.getSample (0, rampSamples - 2), target) << rate;
         EXPECT_FLOAT_EQ (ones.getSample (0, rampSamples - 1), target) << rate;
 

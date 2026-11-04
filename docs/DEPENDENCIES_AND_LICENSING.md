@@ -66,7 +66,9 @@ the repository is public), the product owner must choose one of:
    the business and its revenue, and obtain it before release.
 
 This decision is tracked as an open item in `PROJECT_STATUS.md`. Until it is
-made, built binaries are for internal development and testing only.
+made, built binaries are for internal development and testing only. (As of
+2026-11-04 the GitHub repository is private, so CI artefacts are visible only
+to people with access to it. Making the repository public would change that.)
 
 ## Other obligations for a release (tracked for milestone P3)
 

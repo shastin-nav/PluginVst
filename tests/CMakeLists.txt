@@ -16,6 +16,7 @@ include(GoogleTest)
 # ---------------------------------------------------------------------------
 add_executable(EchoformCoreTests
     core/FloatSafetyTests.cpp
+    core/GainTests.cpp
     core/LinearSmootherTests.cpp
     core/ParameterSpecTests.cpp)
 target_link_libraries(EchoformCoreTests PRIVATE echoform_core GTest::gtest_main)

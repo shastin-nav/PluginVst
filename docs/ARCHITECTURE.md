@@ -77,6 +77,9 @@ Per block, `processBlock` does:
 2. Mono input → duplicated to both outputs; unfed outputs cleared.
 3. `ParameterBridge::update()` → snapshot (clamped; NaN/Inf → default).
 4. Input gain (20 ms linear ramp) → *[engines, P1]* → output gain (20 ms ramp).
+   dB→gain conversion (`dsp/Gain.h`) treats |dB| < 0.001 as exactly unity, so
+   0 dB is bit-transparent on every platform (on ARM, FMA contraction in the
+   normalised→dB conversion otherwise leaves a ~7e-7 dB residue).
 5. NaN/Inf guard: any non-finite output sample is zeroed and counted
    (`getNonFiniteSampleCount()`).
 
