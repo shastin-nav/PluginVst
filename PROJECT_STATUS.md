@@ -11,9 +11,12 @@ passed on it.
 
 | Platform | Format | Build | Unit tests | Host validation | Status |
 |---|---|---|---|---|---|
-| Linux x86_64 (GCC 13 / Clang 18) | VST3 | Pass (local + CI) | 45/45 | pluginval s10 SUCCESS; Steinberg validator 47/47 + 537/537 | **Supported** |
-| Windows x64 (MSVC, VS 2022) | VST3 | Pass (CI) | Pass (CI) | pluginval s10 pass; Steinberg validator 47/47 + 537/537 (CI) | **Supported** |
-| macOS universal (Xcode 16.4) | VST3 + AU | MACOS_BUILD | MACOS_TESTS | MACOS_VALIDATION | MACOS_STATUS |
+| Linux x86_64 (GCC 13.3 / Clang 18.1) | VST3 | Pass (local + CI) | 49/49 | pluginval s10 SUCCESS; Steinberg validator 47/47 + 537/537 | **Supported** |
+| Windows x64 (MSVC 19.44, VS 2022) | VST3 | Pass (CI) | 49/49 (CI) | pluginval s10 SUCCESS; Steinberg validator 47/47 + 537/537 (CI) | **Supported** |
+| macOS universal arm64 + x86_64 (Xcode 16.4) | VST3 + AU | Pass (CI) | 49/49 (CI, on arm64) | `auval -strict` SUCCEEDED; pluginval s10 SUCCESS on VST3 and AU; Steinberg validator 47/47 + 537/537 (CI) | **Supported** |
+
+Verified by CI run [#3](https://github.com/shastin-nav/PluginVst/actions/runs/41792266926) on commit `a9ab75e`.
+The x86_64 slice of the macOS universal binary is built but has not been run (the CI runner is Apple Silicon).
 
 Details and links to CI runs: [`docs/TEST_RESULTS.md`](docs/TEST_RESULTS.md).
 
@@ -28,7 +31,7 @@ Details and links to CI runs: [`docs/TEST_RESULTS.md`](docs/TEST_RESULTS.md).
 - [x] Parameter architecture: 31 parameters from one compile-time-validated spec table; lock-free bridge to DSP snapshot
 - [x] State serialisation: versioned schema, deterministic loading, corrupt-input safe
 - [x] Real-time skeleton: smoothed in/out gain, NaN/Inf guard, mono → stereo, any block size and sample rate
-- [x] GoogleTest suites (45 tests), including a zero-heap-allocation check of `processBlock`
+- [x] GoogleTest suites (49 tests), including a zero-heap-allocation check of `processBlock`
 - [x] Host validation: pluginval strictness 10 and Steinberg's VST3 validator
 - [x] GitHub Actions: independent Linux, Windows, macOS runners
 
@@ -95,3 +98,4 @@ Details and links to CI runs: [`docs/TEST_RESULTS.md`](docs/TEST_RESULTS.md).
 | 2026-11-04 | Tests (45) + pluginval + Steinberg validator passing on Linux | `cc7808e` |
 | 2026-11-04 | CI on three platforms; Linux and Windows green | `e52eaaa` |
 | 2026-11-04 | Clang/AppleClang fixes; docs | `0984680` |
+| 2026-11-04 | ARM bit-transparency fix; **all three platforms green in CI** | `a9ab75e` |

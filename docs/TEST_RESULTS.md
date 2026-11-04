@@ -4,23 +4,36 @@ Every result below was produced by an actual run. Nothing is extrapolated.
 Logs from CI runs are attached to each run as `validation-logs-<platform>`
 artefacts.
 
-## Milestone P0, commit `0984680` (2026-11-04)
+## Milestone P0, final commit `a9ab75e` (2026-11-04)
+
+### GitHub Actions run #3: all platforms green
+
+Run: <https://github.com/shastin-nav/PluginVst/actions/runs/41792266926>
+(every step on every runner succeeded).
+
+| Platform | Toolchain | Build (`-Werror`) | Unit tests | pluginval v1.0.4 s10 | Steinberg validator 3.8.0 | Apple auval |
+|---|---|---|---|---|---|---|
+| Linux x86_64, `ubuntu-24.04` | GCC 13.3.0, Ninja | Pass | **49/49** | VST3 SUCCESS | 47/0 standard, 537/0 extensive | n/a |
+| Windows x64, `windows-2022` | MSVC 19.44 (VS 2022), SDK 10.0.26100 | Pass | **49/49** | VST3 SUCCESS | 47/0 standard, 537/0 extensive | n/a |
+| macOS, `macos-15-arm64` | Xcode 16.4, AppleClang 17, universal (arm64 + x86_64, confirmed with `lipo`) | Pass, 0 warnings | **49/49** | VST3 SUCCESS, AU SUCCESS | 47/0 standard, 537/0 extensive | `auval -strict`: **AU VALIDATION SUCCEEDED** |
+
+The only compiler warnings in the CI logs come from Steinberg's SDK sources
+while building the validator tool (`-Wformat` in `fstring.cpp`/`ustring.cpp`)
+and from GCC's informational LTO notice; none are in ECHOFORM code.
 
 ### Local (development container: Ubuntu 24.04, x86_64)
 
-| Check | Configuration | Result |
-|---|---|---|
-| Build, `-Werror` on project sources | `linux-gcc` (GCC 13.3.0, Release, LTO) | Pass, 0 warnings |
-| Build, `-Werror` on project sources | `linux-clang` (Clang 18.1.3, Release, LTO) | Pass, 0 warnings |
-| Build, `-Werror` on project sources | `linux-gcc-debug` (GCC 13.3.0, Debug) | Pass, 0 warnings |
-| Unit tests | `linux-gcc` | **45/45 pass** (20 core + 25 plug-in) |
-| Unit tests | `linux-clang` | **45/45 pass** |
-| Unit tests | `linux-gcc-debug` (JUCE assertions and leak detector active) | **45/45 pass**; no assertion or leak output |
-| pluginval v1.0.4, strictness 10, under Xvfb | Release VST3 | **SUCCESS** (exit 0, 25 test groups) |
-| pluginval v1.0.4, strictness 10, under Xvfb | Debug VST3 (assertions live) | **SUCCESS** (exit 0), no assertions |
-| Steinberg VST3 validator 3.8.0, standard | Release VST3 | **47 passed, 0 failed** |
-| Steinberg VST3 validator 3.8.0, extensive (`-e`) | Release VST3 | **537 passed, 0 failed** |
-| Steinberg VST3 validator, standard + extensive | Debug VST3 | 47/0 and 537/0 |
+| Check | Configuration | Commit | Result |
+|---|---|---|---|
+| Build, `-Werror` on project sources | `linux-gcc` (GCC 13.3.0, Release, LTO) | `a9ab75e` | Pass, 0 warnings |
+| Build, `-Werror` on project sources | `linux-clang` (Clang 18.1.3, Release, LTO) | `a9ab75e` | Pass, 0 warnings |
+| Unit tests | `linux-gcc` | `a9ab75e` | **49/49 pass** (24 core + 25 plug-in) |
+| Unit tests | `linux-clang` | `a9ab75e` | **49/49 pass** |
+| Unit tests, forced FMA contraction (`-mfma -ffp-contract=fast`) | GCC 13.3.0, Release | `a9ab75e` | **49/49 pass** |
+| pluginval v1.0.4, strictness 10, under Xvfb | Release VST3 | `a9ab75e` | **SUCCESS** (exit 0, 25 test groups) |
+| Steinberg VST3 validator 3.8.0, standard / extensive (`-e`) | Release VST3 | `a9ab75e` | **47/0**, **537/0** |
+| Build + unit tests with JUCE assertions and leak detector | `linux-gcc-debug` | `cc7808e` | 45/45 pass; no assertion or leak output |
+| pluginval s10 + Steinberg validator | Debug VST3 (assertions live) | `cc7808e` | SUCCESS; 47/0 and 537/0; no assertions |
 
 pluginval test groups run: scan, open (cold/warm), plugin info, programs,
 editor, editor whilst processing, audio processing (sample rates 44.1, 48 and
@@ -29,21 +42,19 @@ restoration, automation, editor automation, automatable parameters, parameters,
 background-thread state, parameter thread safety, buses (list/enable/disable/
 restore), parameter fuzzing.
 
-### GitHub Actions
+### CI history
 
-| Platform | Runner | Run | Build (`-Werror`) | Unit tests | pluginval s10 | VST3 validator | AU (auval) |
-|---|---|---|---|---|---|---|---|
-| Linux, GCC | `ubuntu-24.04` | [#1](https://github.com/shastin-nav/PluginVst/actions/runs/41788865664) (`e52eaaa`) | Pass | Pass | Pass | Pass | n/a |
-| Windows, MSVC | `windows-2022` | [#1](https://github.com/shastin-nav/PluginVst/actions/runs/41788865664) (`e52eaaa`) | Pass | Pass | Pass | 47/0 standard, 537/0 extensive | n/a |
-| macOS, Xcode (universal) | `macos-15` (Xcode 16.4, AppleClang 17) | [#1](https://github.com/shastin-nav/PluginVst/actions/runs/41788865664) (`e52eaaa`) | **Fail**: `-Wdouble-promotion` error in `StateSerializer.cpp` (fixed in `0984680`) | not run | not run | not run | not run |
-
-Run #2 (`0984680`) results: see `PROJECT_STATUS.md`, updated when the run completes.
+| Run | Commit | Linux | Windows | macOS |
+|---|---|---|---|---|
+| [#1](https://github.com/shastin-nav/PluginVst/actions/runs/41788865664) | `e52eaaa` | Pass | Pass | **Build failed**: AppleClang `-Wdouble-promotion` in `StateSerializer.cpp` |
+| [#2](https://github.com/shastin-nav/PluginVst/actions/runs/41790477574) | `0984680` | Pass | Pass | Build passed; **5 unit tests failed** (0 dB not bit-transparent on arm64, see below) |
+| [#3](https://github.com/shastin-nav/PluginVst/actions/runs/41792266926) | `a9ab75e` | Pass | Pass | **Pass** (all steps incl. auval and AU) |
 
 ## Defects found by testing and validation (all fixed)
 
 | Found by | Defect | Fix |
 |---|---|---|
-| Steinberg VST3 validator | "Programlist 000 -> Program 000: has no name" (46/47) | Host-visible program named "Default" |
+| Steinberg VST3 validator | "Programlist 000 -> Program 000: has no name" (46 passed, 1 failed) | Host-visible program named "Default" |
 | Unit test `OutputGainIsSmoothedThenExact` | Accumulated float error made the final smoother step ~3% larger than the others | Ramp values computed as `start + increment * n` |
 | macOS CI (AppleClang 17) | Implicit `float → double` into `juce::var` | Explicit conversion |
 | Clang 18 build | Sized `operator delete` replacements undeclared without sized deallocation (GCC requires them) | Defined only when `__cpp_sized_deallocation` is set |
@@ -76,7 +87,8 @@ The validator is therefore run as a separate step (`scripts/run_vst3_validator.s
 ## Test inventory
 
 **EchoformCoreTests** (no JUCE): FloatSafety (finite/non-finite
-classification, sanitising, empty input); LinearSmoother (reset, exact landing
+classification, sanitising, empty input); Gain (0 dB exactly unity, ARM FMA
+residue exactly unity, normal conversion outside tolerance, monotonic); LinearSmoother (reset, exact landing
 on target, monotonic bounded steps, retargeting, zero-length ramp, skip,
 sample-rate scaling); ParameterSpecs (unique host-safe IDs, enum order, ranges
 and defaults, choice lists, tempo divisions); ParameterSnapshot (defaults,
@@ -87,7 +99,8 @@ order, ranges/defaults, skew centres, bridge reflects every parameter, value
 text and parsing); State (round trip, schema/version, missing params → defaults,
 out-of-range/NaN sanitising, invalid blobs ignored, deterministic loading);
 Processing (bit transparency, mono → stereo, supported layouts, output-gain
-smoothing then exact, arbitrary block sizes incl. 0 and > prepared, sample-rate
+smoothing then exact, arbitrary block sizes incl. 0 samples, 0 channels and
+larger than prepared, sample-rate
 changes 22.05–192 kHz, NaN/Inf guard, bypass, deterministic initialisation);
 RealtimeSafety (tracker positive control, zero heap operations in
 `processBlock` and `processBlockBypassed`); Editor (size, theme pixel,
