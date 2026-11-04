@@ -3,14 +3,10 @@
 # SHA-256. pluginval (GPLv3) is a test tool only; it is never shipped.
 #
 # Usage: scripts/fetch_pluginval.sh [Linux|macOS|Windows]
+# (Compatible with the bash 3.2 that ships with macOS.)
 set -euo pipefail
 
 PLUGINVAL_VERSION="v1.0.4"
-declare -A SHA256=(
-    [Linux]="c01c49d8063965c4c2dea8324468336768f5c9139e0b1caebde14c2400b55352"
-    [macOS]="3c4c533bda0c5059eea3ddaea752d757ee2025041f0f47e6bcb0e87f6082b29f"
-    [Windows]="c08e61ce3b96db41636f8ec7e76f4c7e2c13ebdac7fa1b5a1f52b4f32ec715ab"
-)
 
 platform="${1:-}"
 if [[ -z "${platform}" ]]; then
@@ -21,6 +17,13 @@ if [[ -z "${platform}" ]]; then
         *) echo "Unsupported platform: $(uname -s)" >&2; exit 1 ;;
     esac
 fi
+
+case "${platform}" in
+    Linux) expected="c01c49d8063965c4c2dea8324468336768f5c9139e0b1caebde14c2400b55352" ;;
+    macOS) expected="3c4c533bda0c5059eea3ddaea752d757ee2025041f0f47e6bcb0e87f6082b29f" ;;
+    Windows) expected="c08e61ce3b96db41636f8ec7e76f4c7e2c13ebdac7fa1b5a1f52b4f32ec715ab" ;;
+    *) echo "Unknown platform '${platform}'" >&2; exit 1 ;;
+esac
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 dest="${repo_root}/tools/pluginval"
@@ -38,9 +41,9 @@ else
     actual="$(shasum -a 256 "${archive}" | awk '{print $1}')"
 fi
 
-if [[ "${actual}" != "${SHA256[${platform}]}" ]]; then
+if [[ "${actual}" != "${expected}" ]]; then
     echo "SHA-256 mismatch for ${archive}" >&2
-    echo "  expected ${SHA256[${platform}]}" >&2
+    echo "  expected ${expected}" >&2
     echo "  actual   ${actual}" >&2
     exit 1
 fi

@@ -1,0 +1,169 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Each platform runs on its own independent runner. A platform is only
+# considered supported once its job here has passed.
+
+jobs:
+  linux:
+    name: Linux · GCC · VST3
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: true
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            ninja-build pkg-config \
+            libfreetype-dev libfontconfig1-dev \
+            libx11-dev libxcomposite-dev libxcursor-dev libxext-dev \
+            libxinerama-dev libxrandr-dev libxrender-dev \
+            xvfb
+
+      - name: Configure
+        run: cmake --preset linux-gcc -DECHOFORM_WARNINGS_AS_ERRORS=ON
+
+      - name: Build
+        run: cmake --build --preset linux-gcc
+
+      - name: Unit tests
+        run: ctest --preset linux-gcc
+
+      - name: pluginval (strictness 10)
+        run: |
+          xvfb-run -a -s "-screen 0 1280x1024x24" \
+            scripts/run_pluginval.sh "$PWD/build/linux-gcc/Echoform_artefacts/Release/VST3/Echoform.vst3" 10
+
+      - name: Steinberg VST3 validator
+        run: scripts/run_vst3_validator.sh "$PWD/build/linux-gcc/Echoform_artefacts/Release/VST3/Echoform.vst3"
+
+      - name: Upload VST3
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: Echoform-Linux-VST3
+          path: build/linux-gcc/Echoform_artefacts/Release/VST3/Echoform.vst3
+
+      - name: Upload validation logs
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: validation-logs-linux
+          path: validation-logs/
+          if-no-files-found: ignore
+
+  windows:
+    name: Windows · MSVC · VST3
+    runs-on: windows-2022
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: true
+
+      - name: Configure
+        run: cmake --preset windows-msvc -DECHOFORM_WARNINGS_AS_ERRORS=ON
+
+      - name: Build
+        run: cmake --build --preset windows-msvc
+
+      - name: Unit tests
+        run: ctest --preset windows-msvc
+
+      - name: pluginval (strictness 10)
+        run: scripts/run_pluginval.sh "$(cygpath -m "$PWD/build/windows-msvc/Echoform_artefacts/Release/VST3/Echoform.vst3")" 10
+
+      - name: Steinberg VST3 validator
+        run: scripts/run_vst3_validator.sh "$(cygpath -m "$PWD/build/windows-msvc/Echoform_artefacts/Release/VST3/Echoform.vst3")"
+
+      - name: Upload VST3
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: Echoform-Windows-VST3
+          path: build/windows-msvc/Echoform_artefacts/Release/VST3/Echoform.vst3
+
+      - name: Upload validation logs
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: validation-logs-windows
+          path: validation-logs/
+          if-no-files-found: ignore
+
+  macos:
+    name: macOS · Xcode · VST3 + AU (universal)
+    runs-on: macos-15
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: true
+
+      - name: Configure
+        run: cmake --preset macos-xcode -DECHOFORM_WARNINGS_AS_ERRORS=ON
+
+      - name: Build
+        run: cmake --build --preset macos-xcode -- -quiet
+
+      - name: Unit tests
+        run: ctest --preset macos-xcode
+
+      - name: Install plug-ins (ad-hoc signed) for validation
+        run: |
+          artefacts=build/macos-xcode/Echoform_artefacts/Release
+          lipo -info "$artefacts/VST3/Echoform.vst3/Contents/MacOS/Echoform"
+          lipo -info "$artefacts/AU/Echoform.component/Contents/MacOS/Echoform"
+          mkdir -p ~/Library/Audio/Plug-Ins/VST3 ~/Library/Audio/Plug-Ins/Components
+          rm -rf ~/Library/Audio/Plug-Ins/VST3/Echoform.vst3 ~/Library/Audio/Plug-Ins/Components/Echoform.component
+          cp -R "$artefacts/VST3/Echoform.vst3" ~/Library/Audio/Plug-Ins/VST3/
+          cp -R "$artefacts/AU/Echoform.component" ~/Library/Audio/Plug-Ins/Components/
+          codesign --force --deep --sign - ~/Library/Audio/Plug-Ins/VST3/Echoform.vst3
+          codesign --force --deep --sign - ~/Library/Audio/Plug-Ins/Components/Echoform.component
+          killall -9 AudioComponentRegistrar || true
+
+      - name: Apple auval
+        run: |
+          auval -a | grep -i echoform || true
+          auval -strict -v aufx Efrm Ecfm
+
+      - name: pluginval VST3 (strictness 10)
+        run: scripts/run_pluginval.sh ~/Library/Audio/Plug-Ins/VST3/Echoform.vst3 10
+
+      - name: pluginval AU (strictness 10)
+        run: scripts/run_pluginval.sh ~/Library/Audio/Plug-Ins/Components/Echoform.component 10
+
+      - name: Steinberg VST3 validator
+        run: scripts/run_vst3_validator.sh ~/Library/Audio/Plug-Ins/VST3/Echoform.vst3
+
+      - name: Upload VST3 and AU
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: Echoform-macOS-VST3-AU
+          path: |
+            build/macos-xcode/Echoform_artefacts/Release/VST3/Echoform.vst3
+            build/macos-xcode/Echoform_artefacts/Release/AU/Echoform.component
+
+      - name: Upload validation logs
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: validation-logs-macos
+          path: validation-logs/
+          if-no-files-found: ignore

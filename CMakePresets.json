@@ -1,0 +1,82 @@
+{
+    "version": 3,
+    "cmakeMinimumRequired": { "major": 3, "minor": 22, "patch": 0 },
+    "configurePresets": [
+        {
+            "name": "base",
+            "hidden": true,
+            "binaryDir": "${sourceDir}/build/${presetName}",
+            "cacheVariables": {
+                "ECHOFORM_BUILD_TESTS": "ON"
+            }
+        },
+        {
+            "name": "linux-gcc",
+            "inherits": "base",
+            "displayName": "Linux / GCC / Ninja / Release",
+            "generator": "Ninja",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "CMAKE_C_COMPILER": "gcc",
+                "CMAKE_CXX_COMPILER": "g++"
+            },
+            "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Linux" }
+        },
+        {
+            "name": "linux-gcc-debug",
+            "inherits": "linux-gcc",
+            "displayName": "Linux / GCC / Ninja / Debug",
+            "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
+        },
+        {
+            "name": "linux-clang",
+            "inherits": "base",
+            "displayName": "Linux / Clang / Ninja / Release",
+            "generator": "Ninja",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "CMAKE_C_COMPILER": "clang",
+                "CMAKE_CXX_COMPILER": "clang++"
+            },
+            "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Linux" }
+        },
+        {
+            "name": "windows-msvc",
+            "inherits": "base",
+            "displayName": "Windows / MSVC / Visual Studio (x64)",
+            "description": "Uses the newest installed Visual Studio generator.",
+            "architecture": { "value": "x64", "strategy": "set" },
+            "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" }
+        },
+        {
+            "name": "macos-xcode",
+            "inherits": "base",
+            "displayName": "macOS / Xcode / Universal (arm64 + x86_64)",
+            "generator": "Xcode",
+            "cacheVariables": {
+                "CMAKE_OSX_ARCHITECTURES": "arm64;x86_64"
+            },
+            "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Darwin" }
+        }
+    ],
+    "buildPresets": [
+        { "name": "linux-gcc", "configurePreset": "linux-gcc" },
+        { "name": "linux-gcc-debug", "configurePreset": "linux-gcc-debug" },
+        { "name": "linux-clang", "configurePreset": "linux-clang" },
+        { "name": "windows-msvc", "configurePreset": "windows-msvc", "configuration": "Release" },
+        { "name": "macos-xcode", "configurePreset": "macos-xcode", "configuration": "Release" }
+    ],
+    "testPresets": [
+        {
+            "name": "test-base",
+            "hidden": true,
+            "output": { "outputOnFailure": true },
+            "execution": { "noTestsAction": "error", "stopOnFailure": false }
+        },
+        { "name": "linux-gcc", "inherits": "test-base", "configurePreset": "linux-gcc" },
+        { "name": "linux-gcc-debug", "inherits": "test-base", "configurePreset": "linux-gcc-debug" },
+        { "name": "linux-clang", "inherits": "test-base", "configurePreset": "linux-clang" },
+        { "name": "windows-msvc", "inherits": "test-base", "configurePreset": "windows-msvc", "configuration": "Release" },
+        { "name": "macos-xcode", "inherits": "test-base", "configurePreset": "macos-xcode", "configuration": "Release" }
+    ]
+}
