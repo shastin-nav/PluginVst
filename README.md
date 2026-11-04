@@ -51,3 +51,7 @@ ECHOFORM is built on JUCE, which is dual-licensed under AGPLv3 or a commercial
 JUCE licence. **No distribution licence has been chosen yet.** Read
 [`docs/DEPENDENCIES_AND_LICENSING.md`](docs/DEPENDENCIES_AND_LICENSING.md)
 before distributing any binary.
+
+---
+
+*Developed with AI assistance (Claude Code) using spec-driven development (SDD): I define the specifications, direct the implementation and verify the results against them.*
