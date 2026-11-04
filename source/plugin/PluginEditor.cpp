@@ -10,7 +10,7 @@ namespace
     using ui::colour;
     using ui::Palette;
 
-    void drawEnginePanel (juce::Graphics& g, juce::Rectangle<int> area, const juce::String& title)
+    void drawEnginePanel (juce::Graphics& g, juce::Rectangle<int> area, const juce::String& title, bool active)
     {
         const auto bounds = area.toFloat();
 
@@ -21,9 +21,9 @@ namespace
 
         auto header = area.removeFromTop (44).reduced (18, 0);
 
-        // Engine status lamp: dim amber = engine not yet available.
+        // Engine status lamp: lit amber = active, dim = bypassed.
         const auto lamp = header.removeFromRight (10).withSizeKeepingCentre (10, 10).toFloat();
-        g.setColour (colour (Palette::amberDim));
+        g.setColour (colour (active ? Palette::amber : Palette::amberDim));
         g.fillEllipse (lamp);
 
         g.setColour (colour (Palette::ivory));
@@ -35,16 +35,38 @@ namespace
 
         g.setColour (colour (Palette::ivoryMuted));
         g.setFont (juce::FontOptions (13.0f));
-        g.drawText ("Engine arrives in milestone P1", area, juce::Justification::centred);
+        g.drawText (active ? "Active" : "Bypassed", area.removeFromTop (area.getHeight() / 2 + 10), juce::Justification::centredBottom);
+        g.setFont (juce::FontOptions (12.0f));
+        g.drawText ("Controls arrive in milestone P2", area.withTrimmedTop (6), juce::Justification::centredTop);
     }
 } // namespace
 
 EchoformAudioProcessorEditor::EchoformAudioProcessorEditor (EchoformAudioProcessor& owner)
-    : juce::AudioProcessorEditor (owner)
+    : juce::AudioProcessorEditor (owner),
+      delayBypass (owner.getValueTreeState().getRawParameterValue ("delayBypass")),
+      reverbBypass (owner.getValueTreeState().getRawParameterValue ("reverbBypass"))
 {
     setOpaque (true);
     setSize (kWidth, kHeight);
+    refreshEngineStatus();
+    startTimerHz (10);
 }
+
+EchoformAudioProcessorEditor::~EchoformAudioProcessorEditor() { stopTimer(); }
+
+void EchoformAudioProcessorEditor::refreshEngineStatus()
+{
+    const auto delayNow = delayBypass == nullptr || delayBypass->load() < 0.5f;
+    const auto reverbNow = reverbBypass == nullptr || reverbBypass->load() < 0.5f;
+    if (delayNow != delayActive || reverbNow != reverbActive)
+    {
+        delayActive = delayNow;
+        reverbActive = reverbNow;
+        repaint();
+    }
+}
+
+void EchoformAudioProcessorEditor::timerCallback() { refreshEngineStatus(); }
 
 void EchoformAudioProcessorEditor::paint (juce::Graphics& g)
 {
@@ -66,13 +88,13 @@ void EchoformAudioProcessorEditor::paint (juce::Graphics& g)
         g.fillRect (headerArea.reduced (28, 0).removeFromBottom (2));
     }
 
-    drawEnginePanel (g, delayArea, "DELAY");
-    drawEnginePanel (g, reverbArea, "REVERB");
+    drawEnginePanel (g, delayArea, "DELAY", delayActive);
+    drawEnginePanel (g, reverbArea, "REVERB", reverbActive);
 
     // Footer: build identification.
     g.setColour (colour (Palette::ivoryMuted));
     g.setFont (juce::FontOptions (12.0f));
-    g.drawText (juce::String ("v") + JucePlugin_VersionString + "  -  foundation build (P0)",
+    g.drawText (juce::String ("v") + JucePlugin_VersionString + "  -  core DSP build (P1)",
                 footerArea.reduced (28, 0), juce::Justification::centredLeft);
 }
 

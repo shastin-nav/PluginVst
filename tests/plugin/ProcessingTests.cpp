@@ -4,8 +4,12 @@
 
 #include <gtest/gtest.h>
 
+#include "engines/ParameterMapping.h"
+
+#include <chrono>
 #include <cmath>
 #include <cstring>
+#include <iostream>
 #include <limits>
 
 using namespace echoform;
@@ -40,10 +44,10 @@ bool buffersEqual (const juce::AudioBuffer<float>& a, const juce::AudioBuffer<fl
 }
 } // namespace
 
-TEST (Processing, DefaultSettingsAreBitTransparent)
+TEST (Processing, ZeroEngineMixIsBitTransparent)
 {
-    // P0 has no engines: at 0 dB in/out the signal must pass bit-exact.
-    auto processor = makePreparedProcessor();
+    // Engines running but mixed out, 0 dB in/out: the signal passes bit-exact.
+    auto processor = makeTransparentProcessor();
 
     for (unsigned block = 0; block < 8; ++block)
     {
@@ -60,6 +64,7 @@ TEST (Processing, DefaultSettingsAreBitTransparent)
 TEST (Processing, MonoInputFeedsBothOutputs)
 {
     EchoformAudioProcessor processor;
+    setEngineMixesToZero (processor);
     juce::AudioProcessor::BusesLayout layout;
     layout.inputBuses.add (juce::AudioChannelSet::mono());
     layout.outputBuses.add (juce::AudioChannelSet::stereo());
@@ -105,7 +110,7 @@ TEST (Processing, SupportsOnlyMonoOrStereoIntoStereo)
 TEST (Processing, OutputGainIsSmoothedThenExact)
 {
     constexpr double sampleRate = 48000.0;
-    auto processor = makePreparedProcessor (sampleRate, 4096);
+    auto processor = makeTransparentProcessor (sampleRate, 4096);
     setParameterValue (*processor, "outputGain", -6.0f);
 
     const auto targetGain = dsp::decibelsToGain (getParameterValue (*processor, "outputGain"));
@@ -137,7 +142,7 @@ TEST (Processing, OutputGainIsSmoothedThenExact)
 TEST (Processing, HandlesArbitraryBlockSizes)
 {
     // Hosts may deliver blocks of any size, including larger than announced.
-    auto processor = makePreparedProcessor (48000.0, 256);
+    auto processor = makeTransparentProcessor (48000.0, 256);
 
     for (const auto size : { 1, 2, 3, 7, 31, 64, 127, 256, 257, 1000, 4096, 8192 })
     {
@@ -162,6 +167,7 @@ TEST (Processing, HandlesArbitraryBlockSizes)
 TEST (Processing, SampleRateChangesReinitialiseSmoothing)
 {
     EchoformAudioProcessor processor;
+    setEngineMixesToZero (processor);
 
     for (const auto rate : { 22050.0, 44100.0, 48000.0, 88200.0, 96000.0, 176400.0, 192000.0, 44100.0 })
     {
@@ -194,7 +200,7 @@ TEST (Processing, SampleRateChangesReinitialiseSmoothing)
 
 TEST (Processing, NonFiniteInputNeverReachesTheOutput)
 {
-    auto processor = makePreparedProcessor();
+    auto processor = makeTransparentProcessor();
     juce::AudioBuffer<float> buffer (2, 64);
     fillWithNoise (buffer, 11);
 
@@ -259,4 +265,143 @@ TEST (Processing, InitialisationIsDeterministic)
         process (*b, bufB);
         EXPECT_TRUE (buffersEqual (bufA, bufB)) << "block " << block;
     }
+}
+
+// ---- Engines in the plug-in (milestone P1) ---------------------------------------------------
+
+TEST (Processing, DefaultSettingsProduceDelayAndReverb)
+{
+    constexpr double fs = 48000.0;
+    auto processor = makePreparedProcessor (fs, 512);
+    setParameterValue (*processor, "delayModDepth", 0.0f); // keep the echo position exact
+
+    juce::AudioBuffer<float> buffer (2, static_cast<int> (fs));
+    buffer.clear();
+    buffer.setSample (0, 0, 1.0f);
+    buffer.setSample (1, 0, 1.0f);
+    for (int done = 0; done < buffer.getNumSamples(); done += 512)
+    {
+        juce::AudioBuffer<float> view (buffer.getArrayOfWritePointers(), 2, done, 512);
+        process (*processor, view);
+    }
+
+    // Default routing Delay > Reverb, delay mix 30 %, reverb mix 25 %, 375 ms.
+    const auto delayDry = std::sin ((1.0f - 0.30f) * 1.5707964f);
+    const auto reverbDry = std::sin ((1.0f - 0.25f) * 1.5707964f);
+    EXPECT_NEAR (buffer.getSample (0, 0), delayDry * reverbDry, 1.0e-4f) << "direct sound";
+
+    const auto echo = static_cast<int> (0.375 * fs);
+    float echoPeak = 0.0f;
+    for (int n = echo - 2; n <= echo + 2; ++n)
+        echoPeak = std::max (echoPeak, std::abs (buffer.getSample (0, n)));
+    EXPECT_GT (echoPeak, 0.2f) << "first echo at 375 ms";
+
+    double reverbEnergy = 0.0;
+    for (int n = 2000; n < echo - 100; ++n)
+        reverbEnergy += static_cast<double> (buffer.getSample (0, n)) * buffer.getSample (0, n);
+    EXPECT_GT (reverbEnergy, 1.0e-4) << "reverb tail between the direct sound and the echo";
+    EXPECT_TRUE (allFinite (buffer));
+}
+
+TEST (Processing, TempoSyncFollowsTheHostTempo)
+{
+    constexpr double fs = 48000.0;
+    EchoformAudioProcessor processor;
+    FixedTempoPlayHead playHead { 100.0 };
+    processor.setPlayHead (&playHead);
+    setParameterValue (processor, "reverbBypass", 1.0f);
+    setParameterValue (processor, "delayMix", 100.0f);
+    setParameterValue (processor, "delayFeedback", 0.0f);
+    setParameterValue (processor, "delayModDepth", 0.0f);
+    setParameterValue (processor, "delaySync", 1.0f);
+    setParameterValue (processor, "delayDivision", static_cast<float> (params::kDefaultTempoDivision)); // 1/4
+    processor.setRateAndBufferSizeDetails (fs, 256);
+    processor.prepareToPlay (fs, 256);
+
+    juce::AudioBuffer<float> buffer (2, static_cast<int> (fs));
+    buffer.clear();
+    buffer.setSample (0, 0, 1.0f);
+    buffer.setSample (1, 0, 1.0f);
+    for (int done = 0; done < buffer.getNumSamples(); done += 256)
+    {
+        juce::AudioBuffer<float> view (buffer.getArrayOfWritePointers(), 2, done, 256);
+        process (processor, view);
+    }
+
+    // A quarter note at 100 BPM is 0.6 s. (The first block runs before the
+    // tempo is read, so the processor starts at 120 BPM and crossfades.)
+    int peak = 0;
+    for (int n = 1; n < buffer.getNumSamples(); ++n)
+        if (std::abs (buffer.getSample (0, n)) > std::abs (buffer.getSample (0, peak)))
+            peak = n;
+    EXPECT_EQ (peak, static_cast<int> (0.6 * fs));
+    processor.setPlayHead (nullptr);
+}
+
+TEST (Processing, ReportsTailLengthFromEngineSettings)
+{
+    EchoformAudioProcessor processor;
+    setParameterValue (processor, "delayBypass", 1.0f);
+    setParameterValue (processor, "reverbDecay", 4.0f);
+    setParameterValue (processor, "reverbPreDelay", 50.0f);
+    EXPECT_NEAR (processor.getTailLengthSeconds(), 4.05, 0.01);
+
+    setParameterValue (processor, "reverbFreeze", 1.0f);
+    EXPECT_DOUBLE_EQ (processor.getTailLengthSeconds(), engines::kMaxReportedTailSeconds);
+
+    setParameterValue (processor, "reverbBypass", 1.0f);
+    EXPECT_DOUBLE_EQ (processor.getTailLengthSeconds(), 0.0);
+}
+
+TEST (Processing, EnginesSurviveNonFiniteInputAtFullFeedback)
+{
+    auto processor = std::make_unique<EchoformAudioProcessor>();
+    setParameterValue (*processor, "delayFeedback", 100.0f);
+    setParameterValue (*processor, "delayMix", 100.0f);
+    setParameterValue (*processor, "reverbMix", 100.0f);
+    processor->setRateAndBufferSizeDetails (48000.0, 512);
+    processor->prepareToPlay (48000.0, 512);
+
+    juce::AudioBuffer<float> buffer (2, 512);
+    for (int block = 0; block < 400; ++block)
+    {
+        // Freeze once the tank has content (freezing an empty reverb is silent).
+        if (block == 100)
+            setParameterValue (*processor, "reverbFreeze", 1.0f);
+
+        fillWithNoise (buffer, static_cast<unsigned> (block));
+        if (block % 50 == 0)
+        {
+            buffer.setSample (0, 7, std::numeric_limits<float>::quiet_NaN());
+            buffer.setSample (1, 9, std::numeric_limits<float>::infinity());
+        }
+        process (*processor, buffer);
+        ASSERT_TRUE (allFinite (buffer)) << "block " << block;
+    }
+    EXPECT_GT (buffer.getMagnitude (0, 0, 512), 0.0f) << "engines still produce sound";
+}
+
+TEST (Processing, RunsFasterThanRealTime)
+{
+    // 10 s of stereo audio at 48 kHz with both engines active. Generous bound
+    // (CI machines vary); the measured factor is printed for the record.
+    constexpr double fs = 48000.0;
+    auto processor = makePreparedProcessor (fs, 512);
+    setParameterValue (*processor, "delayModDepth", 50.0f);
+    setParameterValue (*processor, "reverbModDepth", 50.0f);
+
+    juce::AudioBuffer<float> buffer (2, 512);
+    fillWithNoise (buffer, 77);
+    const auto blocks = static_cast<int> (10.0 * fs / 512.0);
+
+    const auto start = std::chrono::steady_clock::now();
+    for (int block = 0; block < blocks; ++block)
+        process (*processor, buffer);
+    const auto seconds = std::chrono::duration<double> (std::chrono::steady_clock::now() - start).count();
+
+    const auto realTimeFactor = 10.0 / seconds;
+    std::cout << "[ PERF     ] real-time factor (both engines, 48 kHz stereo): " << realTimeFactor << "x\n";
+#if defined(NDEBUG)
+    EXPECT_GT (realTimeFactor, 5.0);
+#endif
 }

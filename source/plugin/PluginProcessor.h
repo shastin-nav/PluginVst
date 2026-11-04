@@ -1,6 +1,8 @@
 #pragma once
 
 #include "dsp/LinearSmoother.h"
+#include "engines/EffectChain.h"
+#include "engines/ParameterMapping.h"
 #include "params/ParameterSnapshot.h"
 #include "plugin/ParameterBridge.h"
 
@@ -14,9 +16,9 @@ namespace echoform
 
 /// ECHOFORM audio processor.
 ///
-/// Milestone P0: owns the complete parameter set, state serialisation, bus
-/// handling and the real-time-safe signal path skeleton (input gain -> [engines,
-/// not yet implemented] -> output gain -> NaN/Inf guard).
+/// Signal path: NaN/Inf guard -> input gain -> EffectChain (Delay and Reverb
+/// engines, routing, per-engine mix/bypass) -> output gain -> NaN/Inf guard.
+/// The processor is a thin adapter: all DSP lives in echoform_core.
 class EchoformAudioProcessor final : public juce::AudioProcessor
 {
 public:
@@ -43,7 +45,7 @@ public:
     bool acceptsMidi() const override { return false; }
     bool producesMidi() const override { return false; }
     bool isMidiEffect() const override { return false; }
-    double getTailLengthSeconds() const override { return 0.0; }
+    double getTailLengthSeconds() const override;
 
     // ---- Programs ---------------------------------------------------------------------------
     // Presets are handled by ECHOFORM's own preset system (milestone P2). Hosts
@@ -62,7 +64,7 @@ public:
     // ---- Accessors --------------------------------------------------------------------------
     juce::AudioProcessorValueTreeState& getValueTreeState() noexcept { return state; }
 
-    /// Total number of NaN/Inf samples removed from the output (diagnostics; lock-free).
+    /// Total number of NaN/Inf samples removed from input or output (diagnostics; lock-free).
     std::uint64_t getNonFiniteSampleCount() const noexcept { return nonFiniteSamples.load (std::memory_order_relaxed); }
 
     static constexpr double kGainSmoothingSeconds = 0.02;
@@ -72,12 +74,17 @@ private:
     /// outputs and clears any output channel without a matching input.
     void prepareStereoChannels (juce::AudioBuffer<float>& buffer) const noexcept;
 
+    /// Reads the host tempo (audio thread only).
+    void updateHostTempo() noexcept;
+
     juce::AudioProcessorValueTreeState state;
     ParameterBridge parameterBridge;
     params::ParameterSnapshot snapshot;
 
     dsp::LinearSmoother inputGain;
     dsp::LinearSmoother outputGain;
+    engines::EffectChain chain;
+    std::atomic<double> hostBpm { engines::kDefaultBpm };
 
     std::atomic<std::uint64_t> nonFiniteSamples { 0 };
 

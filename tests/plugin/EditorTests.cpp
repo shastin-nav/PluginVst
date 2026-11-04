@@ -66,3 +66,15 @@ TEST (Editor, CanBeOpenedAndClosedRepeatedlyWhileProcessing)
     }
     EXPECT_EQ (processor->getActiveEditor(), nullptr);
 }
+
+TEST (Editor, EngineLampsReflectBypassState)
+{
+    EchoformAudioProcessor processor;
+    test::setParameterValue (processor, "reverbBypass", 1.0f);
+
+    HostedEditor hosted { processor };
+    auto* editor = dynamic_cast<EchoformAudioProcessorEditor*> (hosted.editor.get());
+    ASSERT_NE (editor, nullptr);
+    EXPECT_TRUE (editor->isDelayLampLit());
+    EXPECT_FALSE (editor->isReverbLampLit());
+}

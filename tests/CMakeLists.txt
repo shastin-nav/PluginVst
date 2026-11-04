@@ -15,6 +15,11 @@ include(GoogleTest)
 # Core tests: framework-independent parameter model and DSP. No JUCE.
 # ---------------------------------------------------------------------------
 add_executable(EchoformCoreTests
+    core/AudioAnalysis.h
+    core/DelayEngineTests.cpp
+    core/EffectChainTests.cpp
+    core/DspPrimitiveTests.cpp
+    core/FdnReverbTests.cpp
     core/FloatSafetyTests.cpp
     core/GainTests.cpp
     core/LinearSmootherTests.cpp

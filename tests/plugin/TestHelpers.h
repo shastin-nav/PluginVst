@@ -20,6 +20,20 @@ inline std::unique_ptr<EchoformAudioProcessor> makePreparedProcessor (double sam
     return processor;
 }
 
+/// Sets both engine mixes to 0 (engines run, output is exactly dry).
+/// Must be applied before prepareToPlay(), which snaps all smoothing.
+inline void setEngineMixesToZero (EchoformAudioProcessor& p);
+
+/// A prepared processor whose engines are mixed out: bit-transparent at 0 dB.
+inline std::unique_ptr<EchoformAudioProcessor> makeTransparentProcessor (double sampleRate = 48000.0, int blockSize = 512)
+{
+    auto processor = std::make_unique<EchoformAudioProcessor>();
+    setEngineMixesToZero (*processor);
+    processor->setRateAndBufferSizeDetails (sampleRate, blockSize);
+    processor->prepareToPlay (sampleRate, blockSize);
+    return processor;
+}
+
 /// Deterministic white noise in [-0.5, 0.5].
 inline void fillWithNoise (juce::AudioBuffer<float>& buffer, unsigned seed)
 {
@@ -50,5 +64,27 @@ inline float getParameterValue (EchoformAudioProcessor& p, const char* id)
     auto& param = parameter (p, id);
     return param.convertFrom0to1 (param.getValue());
 }
+
+inline void setEngineMixesToZero (EchoformAudioProcessor& p)
+{
+    setParameterValue (p, "delayMix", 0.0f);
+    setParameterValue (p, "reverbMix", 0.0f);
+}
+
+/// Host play head reporting a fixed tempo.
+struct FixedTempoPlayHead final : juce::AudioPlayHead
+{
+    explicit FixedTempoPlayHead (double tempo) : bpm (tempo) {}
+
+    juce::Optional<PositionInfo> getPosition() const override
+    {
+        PositionInfo info;
+        info.setBpm (bpm);
+        info.setIsPlaying (true);
+        return info;
+    }
+
+    double bpm;
+};
 
 } // namespace echoform::test
